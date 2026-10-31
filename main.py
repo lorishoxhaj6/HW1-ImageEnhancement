@@ -21,7 +21,12 @@ def gaussian_noise(img, mean, stddev, gamma = 1,seed = 42):
     output = np.clip(output, 0, 255).astype(np.uint8)
     return gauss_noise, output
 
-
+def visualize_comparison(images,images_processed, window_name):
+    for name,img in images.items():
+        window_name += " " + name
+        cv2.imshow(window_name,np.hstack([img, images_processed[name]]))
+        cv2.waitKey(0)
+        cv2.destroyWindow(window_name)
 
 
 # Loading original images
@@ -79,20 +84,23 @@ for name,degraded_img in degraded_images.items():
     cv2.imwrite("images/degraded/degraded_"+name+".png",degraded_img)
 
 # visualization of the comparison between original img versus degraded one
-""" for name,img in images.items():
-    window_name = "Original vs degraded "+name
-    cv2.imshow(window_name,np.hstack([img, degraded_images[name]]))
-    cv2.waitKey(0)
-    cv2.destroyWindow(window_name)
- """
+visualize_comparison(images,degraded_images,"Original vs Degraded ")
 
 # computing Linear Contrast Streching
 
 # computing Histogram equalization
-for name,img in images.items():
-    cv2
+
+histeq_images = {}
+for name,img in degraded_images.items():
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    L,a,b = cv2.split(lab)
+
+    L_eq = cv2.equalizeHist(L)
+    lab_eq = cv2.merge([L_eq, a, b])
+    histeq_images[name] = cv2.cvtColor(lab_eq,cv2.COLOR_LAB2BGR)
 
 
+visualize_comparison(degraded_images,histeq_images,"Original vs Histogram equalized ")
 
 
 cv2.destroyAllWindows()
