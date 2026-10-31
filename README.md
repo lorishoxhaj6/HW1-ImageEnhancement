@@ -1,7 +1,7 @@
 # Homework 1: Image Enhancement
 Computer Vision, 2026/2027
 
-Classical (no deep learning) pipeline to enhance images affected by low
+A classical pipeline to enhance images affected by low
 contrast and non-uniform illumination, compared quantitatively and
 qualitatively.
 
@@ -12,7 +12,7 @@ standardize the formats; no other changes were applied.
 
 ## Requirements
 - Python <version, e.g. 3.11>
-- numpy, opencv-python, scikit-image, pandas, matplotlib
+- numpy, opencv-python
   (install with `pip install -r requirements.txt`)
 
 ## How to run
