@@ -159,8 +159,6 @@ for name,img in images.items():
 save_images("images/degraded", degraded_images)
 save_images("results/baseline", degraded_images)
 
-# visualization of the comparison between original img versus degraded one
-# visualize_comparison(images,degraded_images,"Original vs Degraded ")
 
 # computing Linear Contrast Streching
 out_max = 255 # Streching  paramaters
@@ -170,17 +168,12 @@ lcs_images = {}
 linearContrastStreching(degraded_images,lcs_images,out_max,out_min)
 save_images("results/contrast_stretching", lcs_images)
 
-# visualizing comparison between original image, degraded and histogram equalized one
-visualize_comparison(images,degraded_images,lcs_images,"Original vs Degraded vs Linear Contrast Streched image")
 
 # computing Histogram equalization
 
 histeq_images = {}
 histogram_equalization(degraded_images,histeq_images)
 save_images("results/histogram_equalization", histeq_images)
-
-# visualizing comparison between original image, degraded and histogram equalized one
-visualize_comparison(images,degraded_images,histeq_images,"Original vs Degraded vs Histogram equalized image")
 
 # 4th method: Non-Local Means denoising
 nlm_h = 5            # denoising strength on luminance (about the noise sigma)
@@ -192,8 +185,6 @@ methodOfChoice(degraded_images,methodChoice_images,nlm_h,nlm_h_color,nlm_templat
 save_images("results/nlm_denoising", methodChoice_images)
 
 
-# visualizing comparison between original image, degraded and the Non-Local Means denoised one
-visualize_comparison(images,degraded_images,methodChoice_images,"Original vs Degraded vs NLM denoised image")
 
 # side-by-side figures (original | degraded | all methods), one file per image
 save_figures("results/figures", images, degraded_images, {
@@ -220,5 +211,6 @@ with open("results/metrics.csv", "w", newline="", encoding="utf-8") as f:
             ssim = structural_similarity(original, results[name],
                                          channel_axis=2, data_range=255)
             writer.writerow([name, method, round(psnr, 2), round(ssim, 4)])        
+
 
 cv2.destroyAllWindows()
