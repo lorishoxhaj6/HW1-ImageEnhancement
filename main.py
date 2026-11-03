@@ -2,7 +2,9 @@
 
 import os
 import cv2 
+import csv
 import numpy as np
+from skimage.metrics import structural_similarity 
 
 
 def gaussian_noise(img, mean, stddev, gamma = 1,seed = 42):
@@ -46,36 +48,13 @@ def linearContrastStreching(images, result, out_max,out_min):
     return result
 
 
-def methodOfChoice(images, result, kernel_size, gamma):
+def methodOfChoice(images, result, h, h_color, template_size, search_size):
+    """4th method: Non-Local Means denoising.
+    Every pixel is replaced by the weighted average of pixels with similar patches,
+    so edges are preserved better than with a Gaussian blur."""
     for name, img in images.items():
-
-        # STEP 1: Denoising using Gaussian Blur
-        img_smooth = cv2.GaussianBlur(img, (kernel_size, kernel_size), 0)
-
-        # STEP 2: Gamma Correction using Lookup Table
-        table = np.array([
-            ((i / 255.0) ** gamma) * 255
-            for i in range(256)
-        ]).astype("uint8")
-
-        img_smooth_cvt = cv2.cvtColor(img_smooth, cv2.COLOR_BGR2LAB)
-
-        L, a, b = cv2.split(img_smooth_cvt)
-
-        L = cv2.LUT(L, table)
-
-        img_corrected_cvt = cv2.merge([L, a, b])
-
-        img_corrected = cv2.cvtColor(img_corrected_cvt, cv2.COLOR_LAB2BGR)
-
-        # STEP 3: Sharpening using Unsharp Masking
-        alpha = 1.5
-
-        img_blurred = cv2.GaussianBlur(img_corrected,(3, 3),1.0)
-
-        img_sharpened = cv2.addWeighted(img_corrected, 1 + alpha,img_blurred, -alpha,0)
-
-        result[name] = img_sharpened
+        result[name] = cv2.fastNlMeansDenoisingColored(
+            img, None, h, h_color, template_size, search_size)
 
     return result
 
@@ -154,14 +133,13 @@ for name, img in images.items():
 save_images("images/resized", images)
 
 # gaussian parameters
-mean = 0
-stddev = 10
+mean_gaus = 0
+stddev = 5
 gamma = 1
 seed = 42
 
 # contrast parameters
 gain = 0.7
-bias = 0
 
 # computing the degraded images without processing. 
 
@@ -169,9 +147,11 @@ degraded_images ={}
 
 for name,img in images.items():
     # reduce contrast
-    degraded = cv2.convertScaleAbs(img,alpha=gain,beta=bias)
+    mean = float(np.mean(img))
+    # (1 - gain) * mean formula to reduce only contrast and not also the darkness of the image
+    degraded = cv2.convertScaleAbs(img,alpha=gain,beta=(1 - gain) * mean)
     # applying gaussian noise
-    _, degraded = gaussian_noise(degraded,mean,stddev,gamma,seed)
+    _, degraded = gaussian_noise(degraded,mean_gaus,stddev,gamma,seed)
     degraded_images[name] = degraded
 
 
@@ -202,22 +182,43 @@ save_images("results/histogram_equalization", histeq_images)
 # visualizing comparison between original image, degraded and histogram equalized one
 visualize_comparison(images,degraded_images,histeq_images,"Original vs Degraded vs Histogram equalized image")
 
-# 4th method: Denoising + gamma correction (+ sharpening)
-gamma = 0.8
-kernel = 3
+# 4th method: Non-Local Means denoising
+nlm_h = 5            # denoising strength on luminance (about the noise sigma)
+nlm_h_color = 5      # denoising strength on color channels
+nlm_template = 7     # patch size (odd)
+nlm_search = 21      # search window size (odd)
 methodChoice_images = {}
-methodOfChoice(degraded_images,methodChoice_images,kernel,gamma)
-save_images("results/denoise_gamma_sharpen", methodChoice_images)
+methodOfChoice(degraded_images,methodChoice_images,nlm_h,nlm_h_color,nlm_template,nlm_search)
+save_images("results/nlm_denoising", methodChoice_images)
 
 
-# visualizing comparison between original image, degraded and the one denoised + gamma corrected
-visualize_comparison(images,degraded_images,methodChoice_images,"Original vs Degraded vs denoised + gamma corrected image")
+# visualizing comparison between original image, degraded and the Non-Local Means denoised one
+visualize_comparison(images,degraded_images,methodChoice_images,"Original vs Degraded vs NLM denoised image")
 
 # side-by-side figures (original | degraded | all methods), one file per image
 save_figures("results/figures", images, degraded_images, {
     "Contrast stretching": lcs_images,
     "Hist. equalization": histeq_images,
-    "Denoise+gamma+sharpen": methodChoice_images,
+    "NLM denoising": methodChoice_images,
 })
+
+# computing metrics
+
+methods = {
+    "baseline": degraded_images,
+    "contrast_stretching": lcs_images,
+    "histogram_equalization": histeq_images,
+    "nlm_denoising": methodChoice_images,
+}
+
+with open("results/metrics.csv", "w", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f)
+    writer.writerow(["image", "method", "PSNR_dB", "SSIM"])
+    for name, original in images.items():
+        for method, results in methods.items():
+            psnr = cv2.PSNR(original, results[name])
+            ssim = structural_similarity(original, results[name],
+                                         channel_axis=2, data_range=255)
+            writer.writerow([name, method, round(psnr, 2), round(ssim, 4)])        
 
 cv2.destroyAllWindows()
