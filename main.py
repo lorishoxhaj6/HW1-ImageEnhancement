@@ -79,25 +79,28 @@ def save_images(folder, images_dict):
 
 
 def save_figures(folder, originals, degraded, methods):
-    """For every image save one side-by-side figure:
-    original | degraded | method 1 | method 2 | ...
-    `methods` is a dict {method label: {image name: processed image}}."""
+    """For every image AND every method save one side-by-side figure:
+    original | degraded | processed by that method.
+    `methods` is a dict {method name (used in the file name): (title, {image name: processed image})}.
+    Files are saved as <folder>/<image name>_<method name>.png"""
     os.makedirs(folder, exist_ok=True)
     for name in originals:
-        panels = [("Original", originals[name]), ("Degraded", degraded[name])]
-        panels += [(label, imgs[name]) for label, imgs in methods.items()]
+        for method_name, (title, imgs) in methods.items():
+            panels = [("Original", originals[name]),
+                      ("Degraded", degraded[name]),
+                      (title, imgs[name])]
 
-        labelled = []
-        for title, im in panels:
-            # white strip with the title above each panel
-            header = np.full((30, im.shape[1], 3), 255, dtype=np.uint8)
-            cv2.putText(header, title, (5, 20), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5, (0, 0, 0), 1, cv2.LINE_AA)
-            labelled.append(np.vstack([header, im]))
+            labelled = []
+            for panel_title, im in panels:
+                # white strip with the title above each panel
+                header = np.full((30, im.shape[1], 3), 255, dtype=np.uint8)
+                cv2.putText(header, panel_title, (5, 20), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, (0, 0, 0), 1, cv2.LINE_AA)
+                labelled.append(np.vstack([header, im]))
 
-        path = os.path.join(folder, name + "_comparison.png")
-        if not cv2.imwrite(path, np.hstack(labelled)):
-            raise IOError(f"Could not write {path}")
+            path = os.path.join(folder, name + "_" + method_name + ".png")
+            if not cv2.imwrite(path, np.hstack(labelled)):
+                raise IOError(f"Could not write {path}")
 
 
 # Loading original images
@@ -186,11 +189,12 @@ save_images("results/nlm_denoising", methodChoice_images)
 
 
 
-# side-by-side figures (original | degraded | all methods), one file per image
+# side-by-side figures: one file per image and per method (original | degraded | method)
+# saved as results/figures/<image>_<method>.png
 save_figures("results/figures", images, degraded_images, {
-    "Contrast stretching": lcs_images,
-    "Hist. equalization": histeq_images,
-    "NLM denoising": methodChoice_images,
+    "contrast_stretching": ("Contrast stretching", lcs_images),
+    "histogram_equalization": ("Histogram equalization", histeq_images),
+    "nlm_denoising": ("NLM denoising", methodChoice_images),
 })
 
 # computing metrics
@@ -204,13 +208,15 @@ methods = {
 
 with open("results/metrics.csv", "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerow(["image", "method", "PSNR_dB", "SSIM"])
+    writer.writerow(["image", "method", "PSNR_dB", "SSIM", "MSE"])
     for name, original in images.items():
         for method, results in methods.items():
             psnr = cv2.PSNR(original, results[name])
             ssim = structural_similarity(original, results[name],
                                          channel_axis=2, data_range=255)
-            writer.writerow([name, method, round(psnr, 2), round(ssim, 4)])        
+            # MSE: convert to float first, subtracting two uint8 arrays would wrap around
+            mse = np.mean((original.astype(np.float32) - results[name].astype(np.float32)) ** 2)
+            writer.writerow([name, method, round(psnr, 2), round(ssim, 4), round(float(mse), 2)])        
 
 
 cv2.destroyAllWindows()
