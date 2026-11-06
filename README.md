@@ -32,11 +32,6 @@ venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python main.py
 ```
-If PowerShell blocks the activation script, run this once in the same window
-and activate again:
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-```
 
 The input PNG images must be in `images/original/`. All other folders are
 created automatically.
