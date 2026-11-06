@@ -12,6 +12,8 @@ Images are CC0 1.0 or public domain; sources and licenses are listed in the repo
 - numpy, opencv-python, scikit-image
 
 ## How to run
+
+**Linux / macOS**
 ```bash
 git clone <URL of this repository>
 cd <repository folder>
@@ -20,6 +22,22 @@ source venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
+
+**Windows (PowerShell)**
+```powershell
+git clone <URL of this repository>
+cd <repository folder>
+python -m venv venv
+venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python main.py
+```
+If PowerShell blocks the activation script, run this once in the same window
+and activate again:
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
 The input PNG images must be in `images/original/`. All other folders are
 created automatically.
 
