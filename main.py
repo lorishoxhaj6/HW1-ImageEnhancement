@@ -1,5 +1,4 @@
 # Computer Vision class 2026/27, HW1-ImageEnhancement
-
 import os
 import cv2 
 import csv
@@ -34,18 +33,41 @@ def histogram_equalization(images, result):
         result[name] = cv2.cvtColor(lab_eq,cv2.COLOR_LAB2BGR)
     return result
 
-def linearContrastStreching(images, result, out_max,out_min):
-    for name,img in images.items():
-        img_cvt = cv2.cvtColor(img,cv2.COLOR_BGR2LAB)
-        L,a,b = cv2.split(img_cvt)
-        I_min = np.min(L)
-        I_max = np.max(L)
-        G = ((L-I_min)/(I_max-I_min))*(out_max-out_min)+out_min
-        G = np.clip(G,0,255).astype(np.uint8)
-        img_streched = cv2.merge([G, a, b])
-        result[name] = cv2.cvtColor(img_streched,cv2.COLOR_LAB2BGR)
+
+def linearContrastStreching(images, result, out_max, out_min):
+    for name, img in images.items():
+        # Convert BGR to LAB
+        img_lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+        L, a, b = cv2.split(img_lab)
+
+        # Calculate robust intensity limits using percentiles
+        p_low = np.percentile(L, 2)
+        p_high = np.percentile(L, 98)
+
+        # Avoid division by zero
+        if p_high <= p_low:
+            result[name] = img.copy()
+            continue
+
+        # Apply percentile-based linear contrast stretching
+        L_float = L.astype(np.float32)
+
+        G = ((L_float - p_low) /
+             (p_high - p_low)) * (out_max - out_min) + out_min
+
+        # Clip values outside the selected percentile range
+        G = np.clip(G, out_min, out_max).astype(np.uint8)
+
+        # Reconstruct LAB image
+        img_stretched = cv2.merge([G, a, b])
+
+        # Convert back to BGR
+        result[name] = cv2.cvtColor(
+            img_stretched, cv2.COLOR_LAB2BGR
+        )
 
     return result
+
 
 
 def methodOfChoice(images, result, h, h_color, template_size, search_size):
@@ -58,15 +80,6 @@ def methodOfChoice(images, result, h, h_color, template_size, search_size):
 
     return result
 
-
-def visualize_comparison(images,degrade_images,processed_images, window_name):
-    reset = window_name
-    for name,img in images.items():
-        window_name += " " + name
-        cv2.imshow(window_name,np.hstack([img, degrade_images[name], processed_images[name]]))
-        cv2.waitKey(0)
-        cv2.destroyWindow(window_name)
-        window_name = reset
 
 
 def save_images(folder, images_dict):
@@ -131,13 +144,11 @@ for name, img in images.items():
     images[name] = cv2.resize(img,None,fx=0.12,fy=0.12)
 
 # save the resized originals: they are the references for the metrics.
-# NOTE: saved in a separate folder, NOT in images/original, otherwise a second
-# run would resize the already resized images again.
 save_images("images/resized", images)
 
 # gaussian parameters
 mean_gaus = 0
-stddev = 5
+stddev = 10
 gamma = 1
 seed = 42
 
@@ -152,7 +163,7 @@ for name,img in images.items():
     # reduce contrast
     mean = float(np.mean(img))
     # (1 - gain) * mean formula to reduce only contrast and not also the darkness of the image
-    degraded = cv2.convertScaleAbs(img,alpha=gain,beta=(1 - gain) * mean)
+    degraded = cv2.convertScaleAbs(img,None,alpha=gain,beta=(1 - gain) * mean)
     # applying gaussian noise
     _, degraded = gaussian_noise(degraded,mean_gaus,stddev,gamma,seed)
     degraded_images[name] = degraded
@@ -179,8 +190,8 @@ histogram_equalization(degraded_images,histeq_images)
 save_images("results/histogram_equalization", histeq_images)
 
 # 4th method: Non-Local Means denoising
-nlm_h = 5            # denoising strength on luminance (about the noise sigma)
-nlm_h_color = 5      # denoising strength on color channels
+nlm_h = 3            # denoising strength on luminance 
+nlm_h_color = 0      # 0 = colors are not filtered (they keep their original values)
 nlm_template = 7     # patch size (odd)
 nlm_search = 21      # search window size (odd)
 methodChoice_images = {}
@@ -206,6 +217,7 @@ methods = {
     "nlm_denoising": methodChoice_images,
 }
 
+# Computing and writing in the file metrics.csv the metrics
 with open("results/metrics.csv", "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     writer.writerow(["image", "method", "PSNR_dB", "SSIM", "MSE"])
